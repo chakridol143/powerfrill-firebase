@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Powerfrill — Products</title>
+
+  <link rel="stylesheet" href="products.css" />
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+  <!-- Firebase (Modular SDK) -->
+  <script type="module" src="product.js" defer></script>
+</head>
+
+<body>
+  <main class="app">
+    <header class="header">
+      <div class="header-left">
+        <img src="" alt="Logo" class="logo" id="site-logo">
+      </div>
+      <div class="header-right">
+        <i class='bx bx-menu bx-md' id="menu-toggle"></i>
+      </div>
+    </header>
+
+    <!-- Admin Toolbar -->
+    <div id="admin-bar" class="admin-bar" style="display:none;">
+      <button id="toggle-edit" class="admin-btn">Enter Edit Mode</button>
+      <button id="save-content" class="admin-btn">Save</button>
+      <button id="logout-admin" class="admin-btn danger">Logout</button>
+    </div>
+
+    <!-- Admin Login -->
+    <div id="admin-login" class="admin-login" style="display:none;">
+      <div class="admin-login-card">
+        <h3>Admin Login</h3>
+        <input id="admin-password" type="password" placeholder="Enter admin password" />
+        <div style="margin-top:8px;display:flex;gap:8px;">
+          <button id="admin-login-btn" class="admin-btn">Login</button>
+          <button id="admin-cancel-btn" class="admin-btn danger">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <section class="products-section">
+      <div class="products-container">
+        <h1 class="products-title" data-key="productsSection.title" data-editable></h1>
+        <h2 class="products-subtitle" data-key="productsSection.subtitle" data-editable></h2>
+        <div id="products-grid" class="products-grid"></div>
+      </div>
+    </section>
+
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <i class='bx bx-x bx-sm' id="close-sidebar"></i>
+      </div>
+      <ul class="sidebar-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="product.html" class="active-link">Products</a></li>
+        <li><a href="services.html">Services</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="#" id="adcp">Admin Control Panel</a></li>
+      </ul>
+    </div>
+  </main>
+
+  <div class="overlay-bg" id="overlay-bg"></div>
+
+  <script>
+    const menuToggle = document.getElementById('menu-toggle');
+    const sidebar = document.getElementById('sidebar');
+    const closeSidebar = document.getElementById('close-sidebar');
+    const overlayBg = document.getElementById('overlay-bg');
+
+    menuToggle.addEventListener('click', () => {
+      sidebar.classList.add('open');
+      overlayBg.classList.add('active');
+    });
+
+    closeSidebar.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+      overlayBg.classList.remove('active');
+    });
+
+    overlayBg.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+      overlayBg.classList.remove('active');
+    });
+  </script>
+</body>
+</html>
