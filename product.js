@@ -186,7 +186,7 @@ async function saveToFirestore() {
 
   try {
     await setDoc(ref, { data: JSON.stringify(contentData) });
-    alert("Firebase updated successfully ✅");
+    alert("Firebase updated successfully");
   } catch (err) {
     console.error("Error saving to Firestore:", err);
     alert("Save failed. Check console.");
