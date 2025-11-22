@@ -81,7 +81,6 @@ function renderContent() {
     subtitleEl.dataset.path = "productsSection.subtitle";
   }
 
-  // Products
   const grid = document.getElementById("products-grid");
   if (!grid) return;
 
@@ -228,7 +227,7 @@ function setupAdminControls() {
         adminLogin.style.display = "none";
         adminBar.style.display = "flex";
       } else {
-        alert("Wrong password ❌");
+        alert("Wrong password");
       }
     });
   }
