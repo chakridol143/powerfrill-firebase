@@ -1,3 +1,4 @@
+// =============== Firebase Init ===============
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
@@ -14,142 +15,247 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ===== GLOBALS =====
 const ADMIN_PASS = "admin123";
 const ref = doc(db, "websiteContent", "content");
 
 let contentData = null;
 let isEditMode = false;
 
-// ===== INIT =====
-document.addEventListener("DOMContentLoaded", async () => {
-  await loadContent();
-  renderContent();
-  setupAdminControls();
-});
+function setByPath(obj, path, value) {
+  const parts = path.split(".");
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const key = parts[i];
+    cur = cur[key];
+  }
+  cur[parts[parts.length - 1]] = value;
+}
+
+function getByPath(obj, path) {
+  const parts = path.split(".");
+  let cur = obj;
+  for (let i = 0; i < parts.length; i++) {
+    cur = cur?.[parts[i]];
+    if (cur === undefined || cur === null) return "";
+  }
+  return cur;
+}
 
 async function loadContent() {
   try {
     const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const dataField = snap.data().data;
-      contentData = typeof dataField === "string" ? JSON.parse(dataField) : dataField;
-      console.log("Loaded content:", contentData);
-    } else {
-      console.error("No document found in Firestore!");
+    if (!snap.exists()) {
+      console.error("No websiteContent/content document found in Firestore.");
+      return;
     }
-  } catch (e) {
-    console.error("Error loading content:", e);
+
+    const raw = snap.data().data; // string
+    contentData = JSON.parse(raw);
+
+    console.log("Loaded contentData:", contentData);
+  } catch (err) {
+    console.error("Error loading Firestore data:", err);
   }
 }
 
-// ===== RENDER =====
 function renderContent() {
   if (!contentData) return;
 
-  document.getElementById("site-logo").src = contentData.header.logo || "";
-  document.querySelector("[data-key='productsSection.title']").textContent = contentData.productsSection.title || "";
-  document.querySelector("[data-key='productsSection.subtitle']").textContent = contentData.productsSection.subtitle || "";
+  // Logo
+  const logoEl = document.getElementById("site-logo");
+  if (logoEl) {
+    logoEl.src = contentData.header?.logo || "";
+    logoEl.alt = contentData.header?.title || "Logo";
+  }
 
+  // Title & Subtitle (HTML currently uses data-key)
+  const titleEl = document.querySelector("[data-key='productsSection.title']");
+  if (titleEl) {
+    titleEl.textContent = getByPath(contentData, "productsSection.title");
+    titleEl.dataset.path = "productsSection.title";
+  }
+
+  const subtitleEl = document.querySelector("[data-key='productsSection.subtitle']");
+  if (subtitleEl) {
+    subtitleEl.textContent = getByPath(contentData, "productsSection.subtitle");
+    subtitleEl.dataset.path = "productsSection.subtitle";
+  }
+
+  // Products
   const grid = document.getElementById("products-grid");
+  if (!grid) return;
+
   grid.innerHTML = "";
 
-  contentData.productsSection.products.forEach((p, i) => {
+  const products = contentData.productsSection?.products || [];
+
+  products.forEach((p, index) => {
     const card = document.createElement("div");
     card.className = "product-card";
+
+    const imagePath = `productsSection.products.${index}.image`;
+    const titlePath = `productsSection.products.${index}.title`;
+    const descPath  = `productsSection.products.${index}.description`;
+
     card.innerHTML = `
       <div class="product-image-container">
-        <img src="${p.image}" alt="${p.title}" class="product-image" data-path="productsSection.products.${i}.image" data-editable>
+        <img 
+          src="${p.image || ""}" 
+          alt="${p.title || ""}" 
+          class="product-image" 
+          data-editable 
+          data-path="${imagePath}" 
+          data-key="${imagePath}"
+        />
       </div>
       <div class="product-content">
-        <h3 class="product-title" data-path="productsSection.products.${i}.title" data-editable>${p.title}</h3>
-        <p class="product-description" data-path="productsSection.products.${i}.description" data-editable>${p.description}</p>
-        <a href="${p.link}" class="product-button" target="_blank">Learn More</a>
+        <h3 
+          class="product-title" 
+          data-editable 
+          data-path="${titlePath}" 
+          data-key="${titlePath}"
+        >${p.title || ""}</h3>
+
+        <p 
+          class="product-description" 
+          data-editable 
+          data-path="${descPath}" 
+          data-key="${descPath}"
+        >${p.description || ""}</p>
+
+        <a href="${p.link || "#"}" class="product-button" target="_blank">
+          Learn More
+        </a>
       </div>
     `;
+
     grid.appendChild(card);
   });
 }
 
-// ===== EDITING =====
 function enableEditing(state) {
   isEditMode = state;
-  document.querySelectorAll("[data-editable]").forEach(el => {
+
+  document.querySelectorAll("[data-editable]").forEach((el) => {
     if (state) {
-      el.setAttribute("contenteditable", "true");
+      if (el.tagName.toLowerCase() !== "img") {
+        el.setAttribute("contenteditable", "true");
+        el.addEventListener("blur", handleLocalEdit);
+      } else {
+        el.addEventListener("dblclick", handleImageChange);
+      }
       el.classList.add("editable-highlight");
-      el.addEventListener("blur", saveLocalEdit);
     } else {
       el.removeAttribute("contenteditable");
       el.classList.remove("editable-highlight");
-      el.removeEventListener("blur", saveLocalEdit);
+      el.removeEventListener("blur", handleLocalEdit);
+      if (el.tagName.toLowerCase() === "img") {
+        el.removeEventListener("dblclick", handleImageChange);
+      }
     }
   });
 }
 
-function saveLocalEdit(e) {
+function handleLocalEdit(e) {
   const el = e.target;
-  const path = el.dataset.path;
-  const keys = path.split(".");
-  let obj = contentData;
-  for (let i = 0; i < keys.length - 1; i++) obj = obj[keys[i]];
-  obj[keys[keys.length - 1]] = el.innerText.trim();
+  const path = el.dataset.path || el.dataset.key;
+  if (!path || !contentData) return;
+
+  const newVal = el.innerText.trim();
+  setByPath(contentData, path, newVal);
 }
 
-// ===== SAVE TO FIRESTORE =====
+function handleImageChange(e) {
+  const el = e.target;
+  const path = el.dataset.path || el.dataset.key;
+  if (!path || !contentData) return;
+
+  const current = getByPath(contentData, path);
+  const newUrl = prompt("Enter new image URL:", current || el.src || "");
+  if (newUrl !== null && newUrl.trim() !== "") {
+    el.src = newUrl.trim();
+    setByPath(contentData, path, newUrl.trim());
+  }
+}
+
 async function saveToFirestore() {
+  if (!contentData) {
+    alert("Nothing to save – content not loaded.");
+    return;
+  }
+
   try {
     await setDoc(ref, { data: JSON.stringify(contentData) });
-    alert("Saved successfully to Firestore!");
+    alert("Firebase updated successfully ✅");
   } catch (err) {
-    console.error("Error saving:", err);
+    console.error("Error saving to Firestore:", err);
     alert("Save failed. Check console.");
   }
 }
 
-// ===== ADMIN CONTROLS =====
 function setupAdminControls() {
-  const adminBar = document.getElementById("admin-bar");
+  const adminBar   = document.getElementById("admin-bar");
   const adminLogin = document.getElementById("admin-login");
-  const adminLink = document.getElementById("adcp");
+  const adminLink  = document.getElementById("adcp");
 
-  const loginBtn = document.getElementById("admin-login-btn");
-  const cancelBtn = document.getElementById("admin-cancel-btn");
-  const toggleBtn = document.getElementById("toggle-edit");
-  const saveBtn = document.getElementById("save-content");
-  const logoutBtn = document.getElementById("logout-admin");
+  const loginBtn   = document.getElementById("admin-login-btn");
+  const cancelBtn  = document.getElementById("admin-cancel-btn");
+  const toggleBtn  = document.getElementById("toggle-edit");
+  const saveBtn    = document.getElementById("save-content");
+  const logoutBtn  = document.getElementById("logout-admin");
 
-  adminLink.addEventListener("dblclick", () => adminLogin.style.display = "flex");
-  cancelBtn.addEventListener("click", () => adminLogin.style.display = "none");
+  if (!adminBar || !adminLogin || !adminLink) {
+    console.warn("Admin UI elements not found. Skipping admin setup.");
+    return;
+  }
 
-  loginBtn.addEventListener("click", () => {
-    const pass = document.getElementById("admin-password").value.trim();
-    if (pass === ADMIN_PASS) {
+  adminLink.addEventListener("dblclick", () => {
+    adminLogin.style.display = "flex";
+  });
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", () => {
       adminLogin.style.display = "none";
-      adminBar.style.display = "flex";
-    } else alert("Wrong password!");
-  });
-
-  toggleBtn.addEventListener("click", () => {
-    isEditMode = !isEditMode;
-    toggleBtn.textContent = isEditMode ? "Exit Edit Mode" : "Enter Edit Mode";
-    enableEditing(isEditMode);
-  });
-
-  saveBtn.addEventListener("click", saveToFirestore);
-  logoutBtn.addEventListener("click", () => {
-    adminBar.style.display = "none";
-    enableEditing(false);
-  });
-}
-// --- Sidebar menu toggle ---
-document.addEventListener("DOMContentLoaded", () => {
-  const menuIcon = document.querySelector(".menu-icon");
-  const sidebar = document.querySelector(".sidebar");
-
-  if (menuIcon && sidebar) {
-    menuIcon.addEventListener("click", () => {
-      sidebar.classList.toggle("active");
     });
   }
+
+  if (loginBtn) {
+    loginBtn.addEventListener("click", () => {
+      const passInput = document.getElementById("admin-password");
+      const val = passInput?.value.trim() || "";
+
+      if (val === ADMIN_PASS) {
+        adminLogin.style.display = "none";
+        adminBar.style.display = "flex";
+      } else {
+        alert("Wrong password ❌");
+      }
+    });
+  }
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", () => {
+      isEditMode = !isEditMode;
+      toggleBtn.textContent = isEditMode ? "Exit Edit Mode" : "Enter Edit Mode";
+      enableEditing(isEditMode);
+    });
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", saveToFirestore);
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      adminBar.style.display = "none";
+      enableEditing(false);
+      isEditMode = false;
+    });
+  }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadContent();
+  renderContent();
+  setupAdminControls();
 });
